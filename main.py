@@ -77,13 +77,14 @@ def beliefUpdateStep(schema: np.ndarray, beliefs :  np.ndarray, move : Move):
 
 def simulateGame(schema,moves):
     beliefs = schema/np.count_nonzero(schema==1)
-    print(beliefs)
+    # print(beliefs)
 
     for move in moves:
-        print("Move :",move.name," ===========================")
+        # print("Move :",move.name," ===========================")
         beliefs = beliefUpdateStep(schema,beliefs,move)
-        print(beliefs)
-    print("===========================")
+    #     print(beliefs)
+    return beliefs
+    # print("===========================")
 
 # Performs greedy search with random tie-breaking
 def getGreedyMoveSequence(schema):
@@ -109,7 +110,7 @@ def getGreedyMoveSequence(schema):
         bestMovesSequence.append(bestMove)
         # printStuff("Made move ",bestMove.name)
 
-    return simplifyPath(bestMovesSequence)
+    return bestMovesSequence
 
 def getBFSMovesSequence(schema):
     global debug
@@ -168,108 +169,105 @@ def getBFSMovesSequence(schema):
 
     return bestPath if not bestPath is None else []
 
-def getBestMovesSequence(schema):
+def getDijkstraMovesSequence(schema : np.ndarray):
     global debug
-    # initial beliefs
-    beliefs = schema/np.count_nonzero(schema==1)
 
-    fringe = deque()
-    fringe.append(([],beliefs))
+    totalTile = schema.shape[0]*schema.shape[1]
 
-    totalTiles= beliefs.shape[0] * beliefs.shape[1]
-    printStuff("Total tiles: ",totalTiles)
-    printStuff("============")
+    beliefs = schema / np.count_nonzero(schema==1)
 
-    bestPath = getGreedyMoveSequence(schema)
-    if totalTiles<150:
-        for _ in tqdm(range(0,10)):
-            pth = getGreedyMoveSequence(schema)
-            if len(bestPath)> len(pth):
-                bestPath = pth
+    fringe = PriorityQueue()
+    fringe.put((0,beliefs.tobytes()))
+
+    costs : dict = {}
+    costs[beliefs.tobytes()] = 0
+    
+    pathStore = {}
+    pathStore[beliefs.tobytes()] = None
+
+    greedyPath = getGreedyMoveSequence(schema)
+    endState = simulateGame(schema,greedyPath).tobytes()
+    costs[endState] = len(greedyPath)
+    def getPath(stat):
+        path = []
+        current = pathStore[stat]
+        while not current is None:
+            path.append(current[1])
+            current = pathStore[current[0]]
+        path.reverse() # optional
+        return path
+    
+    def getHeuristic(p:np.ndarray):
+        maxVal = np.max(p)
+        listKeys = []
+        for i in range(0,p.shape[0]):
+            for j in range(0,p.shape[1]):
+                if p[i][j]==maxVal:
+                    listKeys.append((i,j))
+        if len(listKeys)==1:
+            secondMax = np.max(p[p!=maxVal])
+            listKeysSecond = []
+            for i in range(0,p.shape[0]):
+                for j in range(0,p.shape[1]):
+                    if p[i][j]==secondMax:
+                        listKeysSecond.append((i,j))
+            h = float("inf")
+            for i in range(0,len(listKeysSecond)):
+                h = min(h, max(listKeys[0][0],listKeysSecond[i][0])+max(listKeys[0][1],listKeysSecond[i][1]))        
+            return h
+        h = float("inf")
+        for i in range(0,len(listKeys)):
+            for j in range(0,len(listKeys)):
+                if i!=j:
+                    h = min(h, max(listKeys[i][0],listKeys[j][0])+max(listKeys[i][1],listKeys[j][1]))
+        return h
 
     pruned = 0
-    while len(fringe)!=0:
-        seq,beliefs = fringe.pop()
-        printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] "%(len(fringe), 0 if bestPath is None else len(bestPath),pruned,len(seq)),end="\r")
-        printStuff("Curr: ",seq,log=True)
+    while not fringe.empty():
+        pr,curr = fringe.get()
+        currArray = np.frombuffer(curr,dtype=beliefs.dtype).reshape(beliefs.shape)
+        printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [heuristic: %d] "%(fringe.qsize(), costs[endState],pruned,pr,getHeuristic(currArray)),end="\r")
 
-        # goal state
-        if  np.count_nonzero(beliefs==0.0)== totalTiles-1:
-            # goal state
-            seq = simplifyPath(seq)
-            if len(bestPath)>len(seq):
-                bestPath = seq
-            # printStuff("Found Goal!")
-            continue
-        
-        if len(seq)>=len(bestPath):
-            # print(len(seq))
+        # print("------- curr [%0.4f] --------------------"%pr)
+        # print(currArray)
+        if pr>costs[endState]:
             pruned+=1
             continue
+
+        if np.count_nonzero(currArray==0.0)==totalTile - 1:
+            # print("Goal!")
+            if endState is None:
+                endState = curr
+            if costs[endState]>costs[curr]:
+                endState = curr
+            continue
+        
         tmpBeliefs = {}
         zeros = {}
         for move in Move:
-            tmpBeliefs[move] = beliefUpdateStep(schema,beliefs,move)
+            tmpBeliefs[move] = beliefUpdateStep(schema,currArray,move)
             zeros[move] = np.count_nonzero(tmpBeliefs[move]==0.0)
         
         mx = max(zeros.values())
 
         bestMoves = [move for move in zeros if zeros[move]==mx]
-        
-        if debug:
-            printStuff("BestMove: ",bestMoves,log=True)
-            printStuff("====",log=True)
-        if len(bestMoves)==1:
-            fringe.append((seq+[bestMoves[0]],tmpBeliefs[bestMoves[0]]))
-        else:
-            for move in bestMoves:
-                if len(seq)==0 or (len(seq)!=0 and move!=seq[-1]):
-                    fringe.append((seq+[move],tmpBeliefs[move]))
-        if debug:
-            printStuff("Fringe",log=True)
-            for f in fringe:
-                printStuff(f[0],log=True)
-            printStuff("============",log=True)
-
-    return bestPath if not bestPath is None else []
-
-def simplifyPath(path):
-    def getSimplePath(path):
-        simplePath = []
-        counter = 0
-        while counter<len(path):
-            # check for r-l-r type of loops
-            if counter<len(path)-2 and path[counter]==Move.getOpp(path[counter+1]):
-                counter+=2
-            elif counter<len(path)-3:
-                looper = {
-                    Move.LEFT : 1,
-                    Move.RIGHT : 1,
-                    Move.UP : 1,
-                    Move.DOWN : 1,
-                }
-                for i in range(0,4):
-                    if looper[path[counter+i]]!=0:
-                        looper[path[counter+i]]-=1
                 
-                if sum(looper.values())==0:
-
-                    counter+=4
-            simplePath.append(path[counter])
-            counter+=1
-        return simplePath
-    
-    superSimplePath = getSimplePath(path)
-    change = len(superSimplePath)-len(path)
-    iteration  = 0
-    while change!=0:
-        pth = superSimplePath
-        superSimplePath = getSimplePath(superSimplePath)
-        change = len(superSimplePath)-len(pth)
-        iteration +=1
-    
-    printStuff("Reduced path from %d to %d after %d iterations"%(len(path),len(superSimplePath),iteration),log=True)
-    return superSimplePath
+        for move in bestMoves:
+            probs = tmpBeliefs[move]
+            probString = probs.tobytes()
+            newCost = costs[curr] + 1
+            if probString not in costs or newCost < costs[probString]:
+                # print(probs)
+                # print("Added ",move.name,"====>",newCost)
+                costs[probString] = newCost
+                fringe.put((newCost+getHeuristic(probs),probs.tobytes()))
+                pathStore[probString] = (curr,move)
+    print()
+    print(np.frombuffer(endState,dtype=beliefs.dtype).reshape(beliefs.shape))
+    if endState not in pathStore:
+        print("Greedy")
+        return greedyPath
+    return [] if endState is None else getPath(endState)
 
 if __name__ =="__main__":
 
@@ -283,14 +281,12 @@ if __name__ =="__main__":
             schema = [strToSchema(x) for x in f.readlines()]
     
     schema = np.array(schema)
-    if args.algo==0:
-        bestMovesSequence = getBestMovesSequence(schema)
-    elif args.algo==1:
+    if args.algo==1:
         bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo==2:
         bestMovesSequence = getBFSMovesSequence(schema)
-    # elif args.algo==3:
-    #     bestMovesSequence = getDijkstraMovesSequence(schema)
+    elif args.algo==0:
+        bestMovesSequence = getDijkstraMovesSequence(schema)
 
     clear_output(wait=True)
     # print(bestMovesSequence)
