@@ -8,6 +8,7 @@ import random
 from collections import deque
 from queue import PriorityQueue
 from IPython.display import clear_output
+from tqdm import tqdm
 
 # custom print function
 def printStuff(*args, log = False , end = "\n"):
@@ -89,7 +90,7 @@ def getGreedyMoveSequence(schema):
     beliefs = schema/np.count_nonzero(schema==1)
 
     totalTiles= beliefs.shape[0] * beliefs.shape[1]
-    printStuff("Total tiles: ",totalTiles)
+    # printStuff("Total tiles: ",totalTiles.)
     bestMovesSequence = []
 
     while np.count_nonzero(beliefs==0.0)!= totalTiles-1:
@@ -180,22 +181,31 @@ def getBestMovesSequence(schema):
     printStuff("============")
 
     bestPath = getGreedyMoveSequence(schema)
+    if totalTiles<150:
+        for _ in tqdm(range(0,10)):
+            pth = getGreedyMoveSequence(schema)
+            if len(bestPath)> len(pth):
+                bestPath = pth
 
+    pruned = 0
     while len(fringe)!=0:
-        printStuff("[Fringe size : %d] [bestPath len : %d]"%(len(fringe), 0 if bestPath is None else len(bestPath)),end="\r")
         seq,beliefs = fringe.pop()
-        if len(seq)>len(bestPath):
-            # print(len(seq))
-            continue
+        printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] "%(len(fringe), 0 if bestPath is None else len(bestPath),pruned,len(seq)),end="\r")
+        printStuff("Curr: ",seq,log=True)
 
         # goal state
         if  np.count_nonzero(beliefs==0.0)== totalTiles-1:
             # goal state
-            if len(bestPath)<len(seq):
+            seq = simplifyPath(seq)
+            if len(bestPath)>len(seq):
                 bestPath = seq
             # printStuff("Found Goal!")
             continue
-            
+        
+        if len(seq)>=len(bestPath):
+            # print(len(seq))
+            pruned+=1
+            continue
         tmpBeliefs = {}
         zeros = {}
         for move in Move:
@@ -258,7 +268,7 @@ def simplifyPath(path):
         change = len(superSimplePath)-len(pth)
         iteration +=1
     
-    print("Reduced path from %d to %d after %d iterations"%(len(path),len(superSimplePath),iteration))
+    printStuff("Reduced path from %d to %d after %d iterations"%(len(path),len(superSimplePath),iteration),log=True)
     return superSimplePath
 
 if __name__ =="__main__":
@@ -286,4 +296,5 @@ if __name__ =="__main__":
     # print(bestMovesSequence)
     
     # simulateGame(schema,bestMovesSequence)
+    printStuff("Length of Path: ",len(bestMovesSequence))
     printStuff("Best moves: ",[i.name for i in bestMovesSequence])
