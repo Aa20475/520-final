@@ -282,30 +282,56 @@ def getSusMovesSequence(schema: np.ndarray):
     beliefs = schema / np.count_nonzero(schema==1)
 
     def getNonZeroBounds(p,lC,rC):
-        minY, maxY= p.shape[1],0
+        if lC:
+            # left top - right bottom
+            minY, maxY= p.shape[1],0
+            
+            minX = 0 if rC!=0 else p.shape[0]
+            maxX=  0 if rC==0 else p.shape[0]
+            for i in range(0,p.shape[0]):
+                for j in range(0,p.shape[1]):
+                    # print(p[i][j], " | ",(i,j))
+                    if p[i][j]!=0:
+                        minY=  min(minY,j)
+                        maxY= max(maxY,j)
+            for i in range(0,p.shape[0]):
+                if p[i][minY]!=0:
+                    if rC == 0:
+                        minX = min(minX,i)
+                    else:
+                        minX = max(minX,i)
+                if p[i][maxY]!=0:
+                    if rC == 1:
+                        maxX = min(maxX,i)
+                    else:
+                        maxX = max(maxX,i)
+            return (minX,minY) ,(maxX,maxY)
+        else:
+            # top left - bottom right
+            # left top - right bottom
+            minY, maxY= p.shape[1],0
+            
+            minX = 0 if rC!=0 else p.shape[0]
+            maxX=  0 if rC==0 else p.shape[0]
+            for i in range(0,p.shape[0]):
+                for j in range(0,p.shape[1]):
+                    # print(p[i][j], " | ",(i,j))
+                    if p[i][j]!=0:
+                        minY=  min(minY,i)
+                        maxY= max(maxY,i)
+            for i in range(0,p.shape[1]):
+                if p[minY][i]!=0:
+                    if rC == 0:
+                        minX = min(minX,i)
+                    else:
+                        minX = max(minX,i)
+                if p[maxY][i]!=0:
+                    if rC == 1:
+                        maxX = min(maxX,i)
+                    else:
+                        maxX = max(maxX,i)
+            return (minY,minX) ,(maxY,maxX)
         
-        minX = 0 if lC!=0 else p.shape[0]
-        maxX=  0 if rC!=0 else p.shape[0]
-        for i in range(0,p.shape[0]):
-            for j in range(0,p.shape[1]):
-                # print(p[i][j], " | ",(i,j))
-                if p[i][j]!=0:
-                    minY=  min(minY,j)
-                    maxY= max(maxY,j)
-        # print(minY,maxY)
-        for i in range(0,p.shape[0]):
-            if p[i][minY]!=0:
-                if lC == 0:
-                    minX = min(minX,i)
-                else:
-                    minX = max(minX,i)
-            if p[i][maxY]!=0:
-                if rC == 0:
-                    maxX = min(maxX,i)
-                else:
-                    maxX = max(maxX,i)
-
-        return (minX,minY) ,(maxX,maxY)
 
     def getBestMove(schema,a,b):
         # Performs search algorithm from top left non-zero to bottom-right non-zero
@@ -359,14 +385,13 @@ def getSusMovesSequence(schema: np.ndarray):
     while not done:   
         for i in [0,1]:
             for j in [0,1]:
-                if i!=j:
-                    a,b = getNonZeroBounds(beliefStates[(i,j)],i,j)
-                    if a==b:
-                        return moves[(i,j)]
-                    move = getBestMove(schema,a,b)
-                    # print((i,j)," -> ",move)
-                    beliefStates[(i,j)] = beliefUpdateStep(schema, beliefStates[(i,j)], move)
-                    moves[(i,j)].append(move)
+                a,b = getNonZeroBounds(beliefStates[(i,j)],i,j)
+                if a==b:
+                    return moves[(i,j)]
+                move = getBestMove(schema,a,b)
+                # print((i,j)," -> ",move)
+                beliefStates[(i,j)] = beliefUpdateStep(schema, beliefStates[(i,j)], move)
+                moves[(i,j)].append(move)
 
     return moves[(0,1)]
 
