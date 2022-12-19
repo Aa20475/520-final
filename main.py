@@ -9,6 +9,9 @@ from collections import deque
 from queue import PriorityQueue
 from IPython.display import clear_output
 from tqdm import tqdm
+import pygame
+import math
+from time import sleep
 
 # custom print function
 def printStuff(*args, log = False , end = "\n"):
@@ -48,6 +51,8 @@ def buildArgs():
     parser.add_argument("--columns",required=False,default=5, type=int, help="Columns used during map generation")
     parser.add_argument("--algo",required=False,default=0, type=int, help="If 1, runs greedy approach")
     parser.add_argument("--debug",required=False,default=0, type=bool, help="If True, prints debug stuff")
+    parser.add_argument("--ui",required=False,default=0, type=bool, help="If True, runs UI for greedy approach")
+    
 
     return parser.parse_args()
 
@@ -57,7 +62,7 @@ def strToSchema(s:str):
 
 # checks if a position is valid
 def isValid(schema : np.ndarray,i,j):
-    return (i>=0 and i<schema.shape[0] and j>=0 and j<schema.shape[1] and schema[i][j])
+    return (i>=0 and i<schema.shape[0] and j>=0 and j<schema.shape[1] and schema[i][j]!=0)
 
 # Performs belief update based on a give move 
 # Note that it creates a new copy of beliefs
@@ -65,7 +70,7 @@ def beliefUpdateStep(schema: np.ndarray, beliefs :  np.ndarray, move : Move):
     newBeliefs = np.zeros(beliefs.shape)
     for i in range(0,beliefs.shape[0]):
         for j in range(0,beliefs.shape[1]):
-            if schema[i][j]:
+            if schema[i][j]!=0:
                 # update belief for unblocked cells
                 newI = i+ move.value[0]
                 newJ = j+ move.value[1]
@@ -113,7 +118,7 @@ def getHeuristicOld(p:np.ndarray):
     return h
 
 def simulateGame(schema,moves):
-    beliefs = schema/np.count_nonzero(schema==1)
+    beliefs = np.array(schema!=0,dtype=int)/np.count_nonzero(schema!=0)
     # print(beliefs)
 
     for move in moves:
@@ -122,16 +127,148 @@ def simulateGame(schema,moves):
     #     print(beliefs)
     return beliefs
     # print("===========================")
+def getBestPath(schema,a,b):
+    # Performs search algorithm from top left non-zero to bottom-right non-zero
+    fringe = PriorityQueue()
+    fringe.put((0,a))
+    
+    costs = {}
+    pred = {}
 
+    costs[a] = 0
+    pred[a] = None
+    
+    while not fringe.empty():
+        prior,top = fringe.get()
+        # print("=== [%d]======="%prior)
+        # print(top)
+        if top == b:
+            break
+        
+        for move in Move:
+            newCost = costs[top]+1
+            newPoint = (top[0]+move.value[0],top[1]+move.value[1])
+            if isValid(schema,newPoint[0],newPoint[1]) and (newPoint not in costs or costs[newPoint]>newCost):
+                # print("Added ",move.name," || ", newCost + abs(newPoint[0]-b[0]) + abs(newPoint[1]-b[1]))
+                costs[newPoint] = newCost
+                pred[newPoint] = (top, move)
+                priority = newCost + abs(newPoint[0]-b[0]) + abs(newPoint[1]-b[1])
+                fringe.put((priority,newPoint))
+
+    if b not in pred:
+        print("No path from ",a," to ",b)
+        return []
+    
+    curr = pred[b]
+    path = []
+    points = []
+    while not curr is None:
+        path.append(curr[1])
+        points.append(curr[0])
+        curr = pred[curr[0]]
+    
+    path.reverse()
+    # print(path)
+    return path, points
+
+def runUI(schema,moves):
+    pygame.init()
+    screen = pygame.display.set_mode([900, 900])
+    colors = {
+    "WHITE":(255,255,255),
+    "BLACK":(0,0,0),
+    "RED":(255,0,0),
+    }
+    beliefs = np.array(schema!=0,dtype=int)/np.count_nonzero(schema==1)
+
+    boardLimits = [800,800]
+
+    agentPos = (0,0)
+    for i in range(0,schema.shape[0]):
+        for j in range(0,schema.shape[1]):
+            if schema[i][j]==2:
+                agentPos = (i,j)
+                break
+    
+    box = 10
+    font = pygame.font.Font('freesansbold.ttf', math.floor(box))
+
+    startCenter = [50,50]
+    if schema.shape[0]>schema.shape[1]:
+        box = boardLimits[0]//schema.shape[0]
+        startCenter[0] += box*(schema.shape[0]-schema.shape[1])//2
+    else:
+        box = boardLimits[1]//schema.shape[1]
+        startCenter[1] += box*(schema.shape[1]-schema.shape[0])//2
+
+    def updateSchema(schema,agentPos,move):
+
+        # print(move)
+        i,j = agentPos[0]+move.value[0], agentPos[1]+move.value[1]
+        if isValid(schema,i,j):
+            schema[agentPos[0],agentPos[1]] = 1
+            schema[i,j] = 2
+            # print(agentPos,"-> ",(i,j))
+            return (i,j)
+        return agentPos
+
+    
+    for k in range(0,len(moves)):
+        screen.fill(colors["WHITE"])
+        sleep(0.5)
+        pygame.draw.rect(screen,colors["BLACK"],(startCenter[0],startCenter[1],schema.shape[1]*box,schema.shape[0]*box),width=2)
+        for i in range(0,schema.shape[0]):
+            for j in range(0,schema.shape[1]):
+                if schema[i][j]==0:
+                    pygame.draw.rect(screen,colors["BLACK"],(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+                elif schema[i][j]==2:
+                    pygame.draw.rect(screen,colors["RED"],(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+                elif schema[i][j]==1:
+                    pygame.draw.rect(screen,(255,255*beliefs[i][j],255),(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+
+        for i in range(0,schema.shape[0]):
+            for j in range(0,schema.shape[1]):
+                if schema[i][j]:
+                    text = font.render(("%0.3f"%(beliefs[i][j])),False,colors["BLACK"])
+                    textRect = text.get_rect()
+                    textRect.center = (startCenter[0]+j*box+box/2,startCenter[1]+i*box+box/2  )
+                    screen.blit(text, textRect)
+
+        pygame.display.flip()
+        beliefs = beliefUpdateStep(schema,beliefs,moves[k])
+        agentPos = updateSchema(schema,agentPos,moves[k])
+        pygame.draw.rect(screen,colors["BLACK"],(startCenter[0],startCenter[1],schema.shape[1]*box,schema.shape[0]*box),width=2)
+        for i in range(0,schema.shape[0]):
+            for j in range(0,schema.shape[1]):
+                if schema[i][j]==0:
+                    pygame.draw.rect(screen,colors["BLACK"],(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+                elif schema[i][j]==2:
+                    pygame.draw.rect(screen,colors["RED"],(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+                elif schema[i][j]==1:
+                    pygame.draw.rect(screen,(255,255*beliefs[i][j],255),(startCenter[0]+j*box,startCenter[1]+i*box,box,box))
+
+        for i in range(0,schema.shape[0]):
+            for j in range(0,schema.shape[1]):
+                if schema[i][j]:
+                    text = font.render(("%0.3f"%(beliefs[i][j])),False,colors["BLACK"])
+                    textRect = text.get_rect()
+                    textRect.center = (startCenter[0]+j*box+box/2,startCenter[1]+i*box+box/2  )
+                    screen.blit(text, textRect)
+
+        pygame.display.flip()
+    pygame.quit()
+    
 # Performs greedy search with random tie-breaking
-def getGreedyMoveSequence(schema):
-    beliefs = schema/np.count_nonzero(schema==1)
+def getGreedyMoveSequence(schema, ui = False):
+    beliefs = np.array(schema!=0,dtype=int)/np.count_nonzero(schema==1)
 
     totalTiles= beliefs.shape[0] * beliefs.shape[1]
+
     # printStuff("Total tiles: ",totalTiles.)
     bestMovesSequence = []
 
     while np.count_nonzero(beliefs==0.0)!= totalTiles-1:
+    
         tmpBeliefs = {}
         for move in Move:
             tmpBeliefs[move] = beliefUpdateStep(schema,beliefs,move)
@@ -141,18 +278,47 @@ def getGreedyMoveSequence(schema):
 
         keyList = list(tmpBeliefs.keys())
         bestMoves = [keyList[i] for i in range(0,len(zeros)) if zeros[i]==mx ]
+        
+        def getRating(beliefs):
+            rating = 0.0
+            nonZero = []
+            for i in range(0,beliefs.shape[0]):
+                for j in range(0,beliefs.shape[1]):
+                    if beliefs[i][j]!=0:
+                        nonZero.append((i,j))
+            
+            dists = {}
+            for i in range(0,len(nonZero)):
+                for j in range(len(nonZero)-1,-1,-1):
+                    if (nonZero[i],nonZero[j]) in dists:
+                        rating += dists[(nonZero[i],nonZero[j])]
+                    else:
+                        _ , path = getBestPath(schema,nonZero[i],nonZero[j])
+                        for x in range(0,len(path)):
+                            for y in range(x+1,len(path)):
+                                dists[(path[x],path[y])] = y-x+1
+                        rating += len(path)
+            
+            return rating
 
-        bestMove = random.choice(bestMoves)
+        if len(bestMoves)>1:
+            contours = {i :getRating(tmpBeliefs[i]) for i in bestMoves}
+            mxContours = min(contours.values())
+
+            bestMoves = [i for i in contours.keys() if contours[i] == mxContours]
+            bestMove = random.choice(bestMoves)
+        else:
+            bestMove = bestMoves[0]
         beliefs = tmpBeliefs[bestMove]
         bestMovesSequence.append(bestMove)
-        # printStuff("Made move ",bestMove.name)
+        
 
     return bestMovesSequence
 
 def getBFSMovesSequence(schema):
     global debug
     # initial beliefs
-    beliefs = schema/np.count_nonzero(schema==1)
+    beliefs = np.array(schema!=0,dtype=int)/np.count_nonzero(schema==1)
 
     fringe = deque()
     fringe.append(([],beliefs))
@@ -408,6 +574,14 @@ if __name__ =="__main__":
             schema = [strToSchema(x) for x in f.readlines()]
     
     schema = np.array(schema)
+    
+    nonZero = []
+    for i in range(0,schema.shape[0]):
+        for j in range(0,schema.shape[1]):
+            if schema[i,j]==1:
+                nonZero.append((i,j))
+            
+    schema[random.choice(nonZero)] = 2
     if args.algo==3:
         bestMovesSequence = getDijkstraMovesSequence(schema)
     elif args.algo==1:
@@ -419,7 +593,8 @@ if __name__ =="__main__":
 
     clear_output(wait=True)
     # print(bestMovesSequence)
-    
+    if args.ui:
+        runUI(schema,bestMovesSequence)
     # simulateGame(schema,bestMovesSequence)
     printStuff("Length of Path: ",len(bestMovesSequence))
     printStuff("Best moves: ",[i.name for i in bestMovesSequence])
