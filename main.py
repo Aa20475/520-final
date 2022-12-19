@@ -84,7 +84,7 @@ def getHeuristic(p: np.ndarray):
                 minX, maxX =  min(minX,i),max(maxX,i)
                 minY, maxY =  min(minY,j),max(maxY,j)
     
-    return abs(minX-maxX)+abs(maxX-maxY)
+    return abs(minX-maxX)+abs(minY-maxY)
     
 
 def getHeuristicOld(p:np.ndarray):
@@ -283,6 +283,84 @@ def getDijkstraMovesSequence(schema : np.ndarray):
         return greedyPath
     return [] if endState is None else getPath(endState)
 
+def getSusMovesSequence(schema: np.ndarray):
+    beliefs = schema / np.count_nonzero(schema==1)
+
+    def getNonZeroBounds(p):
+        minY, maxY= p.shape[1],0
+        minX, maxX= p.shape[0],0
+        for i in range(0,p.shape[0]):
+            for j in range(0,p.shape[1]):
+                # print(p[i][j], " | ",(i,j))
+                if p[i][j]!=0:
+                    minY=  min(minY,j)
+                    maxY= max(maxY,j)
+        # print(minY,maxY)
+        for i in range(0,p.shape[0]):
+            if p[i][minY]!=0:
+                minX = min(minX,i)
+            if p[i][maxY]!=0:
+                maxX = max(maxX,i)
+        return (minX,minY) ,(maxX,maxY)
+
+    def getBestMove(schema,a,b):
+        # Performs search algorithm from top left non-zero to bottom-right non-zero
+        fringe = PriorityQueue()
+        fringe.put((0,a))
+        
+        costs = {}
+        pred = {}
+
+        costs[a] = 0
+        pred[a] = None
+        
+        while not fringe.empty():
+            prior,top = fringe.get()
+            # print("=== [%d]======="%prior)
+            # print(top)
+            if top == b:
+                break
+            
+            for move in Move:
+                newCost = costs[top]+1
+                newPoint = (top[0]+move.value[0],top[1]+move.value[1])
+                if isValid(schema,newPoint[0],newPoint[1]) and (newPoint not in costs or costs[newPoint]>newCost):
+                    # print("Added ",move.name," || ", newCost + abs(newPoint[0]-b[0]) + abs(newPoint[1]-b[1]))
+                    costs[newPoint] = newCost
+                    pred[newPoint] = (top, move)
+                    priority = newCost + abs(newPoint[0]-b[0]) + abs(newPoint[1]-b[1])
+                    fringe.put((priority,newPoint))
+
+        if b not in pred:
+            print("No path from ",a," to ",b)
+            return []
+        
+        curr = pred[b]
+        path = []
+        while not curr is None:
+            path.append(curr[1])
+            curr = pred[curr[0]]
+        
+        path.reverse()
+        # print(path)
+        return path[0]
+
+    a,b = getNonZeroBounds(beliefs)
+    moves = []
+    while a!=b:
+        move = getBestMove(schema,a,b)
+        # print("====================")
+        # print(a,b)
+        # print(beliefs)
+        # print(move)
+        beliefs = beliefUpdateStep(schema, beliefs, move)
+        moves.append(move)
+        a,b = getNonZeroBounds(beliefs)
+
+    print(beliefs )
+    return moves       
+
+    
 if __name__ =="__main__":
 
     args = buildArgs()
@@ -295,12 +373,14 @@ if __name__ =="__main__":
             schema = [strToSchema(x) for x in f.readlines()]
     
     schema = np.array(schema)
-    if args.algo==1:
+    if args.algo==0:
+        bestMovesSequence = getDijkstraMovesSequence(schema)
+    elif args.algo==1:
         bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo==2:
         bestMovesSequence = getBFSMovesSequence(schema)
-    elif args.algo==0:
-        bestMovesSequence = getDijkstraMovesSequence(schema)
+    elif args.algo==3:
+        bestMovesSequence = getSusMovesSequence(schema)
 
     clear_output(wait=True)
     # print(bestMovesSequence)
