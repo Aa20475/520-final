@@ -11,7 +11,7 @@ from IPython.display import clear_output
 from tqdm import tqdm
 import pygame
 import math
-from time import sleep
+from time import sleep, time
 
 # custom print function
 def printStuff(*args, log=False, end="\n"):
@@ -405,6 +405,11 @@ def getGreedyMoveSequence(schema, ui=False):
                             dists[(path[y], path[x])] = y - x 
                             # print((path[x], path[y]), " :", dists[(path[x], path[y])])
 
+    moveCounter = {
+        move:0 for move in Move
+    }
+
+
     while np.count_nonzero(beliefs == 0.0) != totalTiles - 1:
 
         tmpBeliefs = {}
@@ -416,6 +421,7 @@ def getGreedyMoveSequence(schema, ui=False):
 
         keyList = list(tmpBeliefs.keys())
         bestMoves = [keyList[i] for i in range(0, len(zeros)) if zeros[i] == mx]
+
 
         def getRating(beliefs):
             rating = 0.0
@@ -431,17 +437,25 @@ def getGreedyMoveSequence(schema, ui=False):
 
             return rating
         # print(bestMoves)
-        print(beliefs+schema)
+        # print(beliefs+schema)
         if len(bestMoves) > 1:
             contours = {i: getRating(tmpBeliefs[i]) for i in bestMoves}
             mxContours = min(contours.values())
-            # print(contours)
             bestMoves = [i for i in contours.keys() if contours[i] == mxContours]
-            bestMove = random.choice(bestMoves)
+            if len(bestMoves)!=1:
+                rank = {x:moveCounter[x] for x in bestMoves}
+                mn = min(rank.values())
+                for x in bestMoves:
+                    if moveCounter[x]==mn:
+                        bestMove = x
+                        break
+            else:
+                bestMove = bestMoves[0]
         else:
             bestMove = bestMoves[0]
-        print("Chose :",bestMove.name)
+        
         beliefs = tmpBeliefs[bestMove]
+        moveCounter[bestMove]+=1
         bestMovesSequence.append(bestMove)
 
     return bestMovesSequence
@@ -707,7 +721,7 @@ def getSusMovesSequence(schema: np.ndarray):
 
 
 if __name__ == "__main__":
-
+    start = time()
     args = buildArgs()
 
     debug = args.debug
@@ -727,9 +741,9 @@ if __name__ == "__main__":
 
     schema[random.choice(nonZero)] = 2
 
-    if args.algo == 0:
+    if args.algo == 1:
         bestMovesSequence = getSusMovesSequence(schema)
-    elif args.algo == 1:
+    elif args.algo == 0:
         bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo == 2:
         bestMovesSequence = getBFSMovesSequence(schema)
@@ -739,5 +753,6 @@ if __name__ == "__main__":
     clear_output(wait=True)
     if args.ui:
         runUI(schema, bestMovesSequence)
+    print("Total time: ",time()-start)
     printStuff("Length of Path: ", len(bestMovesSequence))
     printStuff("Best moves: ", [i.name for i in bestMovesSequence])
