@@ -223,13 +223,14 @@ def getBestPath(schema, a, b):
 
     curr = pred[b]
     path = []
-    points = []
+    points = [b]
     while not curr is None:
         path.append(curr[1])
         points.append(curr[0])
         curr = pred[curr[0]]
 
     path.reverse()
+    points.reverse()
     # print(path)
     return path, points
 
@@ -384,6 +385,26 @@ def getGreedyMoveSequence(schema, ui=False):
     # printStuff("Total tiles: ",totalTiles.)
     bestMovesSequence = []
 
+    dists = {}
+    
+    nonZero = []
+    for i in range(0, beliefs.shape[0]):
+        for j in range(0, beliefs.shape[1]):
+            if schema[i][j] != 0:
+                nonZero.append((i, j))
+    for i in tqdm(range(0, len(nonZero))):
+        for j in range(len(nonZero) - 1, -1, -1):
+            if (nonZero[i],nonZero[j]) not in dists:
+                # print( nonZero[i], nonZero[j])
+                _, path = getBestPath(schema, nonZero[i], nonZero[j])
+                # print(path)
+                for x in range(0, len(path)):
+                    for y in range(x , len(path)):
+                        if (path[x],path[y]) not in dists:
+                            dists[(path[x], path[y])] = y - x
+                            dists[(path[y], path[x])] = y - x 
+                            # print((path[x], path[y]), " :", dists[(path[x], path[y])])
+
     while np.count_nonzero(beliefs == 0.0) != totalTiles - 1:
 
         tmpBeliefs = {}
@@ -404,28 +425,22 @@ def getGreedyMoveSequence(schema, ui=False):
                     if beliefs[i][j] != 0:
                         nonZero.append((i, j))
 
-            dists = {}
             for i in range(0, len(nonZero)):
                 for j in range(len(nonZero) - 1, -1, -1):
-                    if (nonZero[i], nonZero[j]) in dists:
-                        rating += dists[(nonZero[i], nonZero[j])]
-                    else:
-                        _, path = getBestPath(schema, nonZero[i], nonZero[j])
-                        for x in range(0, len(path)):
-                            for y in range(x + 1, len(path)):
-                                dists[(path[x], path[y])] = y - x + 1
-                        rating += len(path)
+                    rating += dists[(nonZero[i], nonZero[j])]
 
             return rating
-
+        # print(bestMoves)
+        print(beliefs+schema)
         if len(bestMoves) > 1:
             contours = {i: getRating(tmpBeliefs[i]) for i in bestMoves}
             mxContours = min(contours.values())
-
+            # print(contours)
             bestMoves = [i for i in contours.keys() if contours[i] == mxContours]
             bestMove = random.choice(bestMoves)
         else:
             bestMove = bestMoves[0]
+        print("Chose :",bestMove.name)
         beliefs = tmpBeliefs[bestMove]
         bestMovesSequence.append(bestMove)
 
