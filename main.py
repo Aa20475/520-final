@@ -75,6 +75,43 @@ def beliefUpdateStep(schema: np.ndarray, beliefs :  np.ndarray, move : Move):
                     newBeliefs[i][j] += beliefs[i][j]
     return newBeliefs
 
+def getHeuristic(p: np.ndarray):
+    minY, maxY= p.shape[1],0
+    minX, maxX= p.shape[0],0
+    for i in range(0,p.shape[0]):
+        for j in range(0,p.shape[1]):
+            if p[i][j]!=0:
+                minX, maxX =  min(minX,i),max(maxX,i)
+                minY, maxY =  min(minY,j),max(maxY,j)
+    
+    return abs(minX-maxX)+abs(maxX-maxY)
+    
+
+def getHeuristicOld(p:np.ndarray):
+    maxVal = np.max(p)
+    listKeys = []
+    for i in range(0,p.shape[0]):
+        for j in range(0,p.shape[1]):
+            if p[i][j]==maxVal:
+                listKeys.append((i,j))
+    if len(listKeys)==1:
+        secondMax = np.max(p[p!=maxVal])
+        listKeysSecond = []
+        for i in range(0,p.shape[0]):
+            for j in range(0,p.shape[1]):
+                if p[i][j]==secondMax:
+                    listKeysSecond.append((i,j))
+        h = 0
+        for i in range(0,len(listKeysSecond)):
+            h = max(h, max(listKeys[0][0],listKeysSecond[i][0])+max(listKeys[0][1],listKeysSecond[i][1]))        
+        return h
+    h = 0
+    for i in range(0,len(listKeys)):
+        for j in range(0,len(listKeys)):
+            if i!=j:
+                h = max(h, max(listKeys[i][0],listKeys[j][0])+max(listKeys[i][1],listKeys[j][1]))
+    return h
+
 def simulateGame(schema,moves):
     beliefs = schema/np.count_nonzero(schema==1)
     # print(beliefs)
@@ -196,43 +233,23 @@ def getDijkstraMovesSequence(schema : np.ndarray):
             current = pathStore[current[0]]
         path.reverse() # optional
         return path
-    
-    def getHeuristic(p:np.ndarray):
-        maxVal = np.max(p)
-        listKeys = []
-        for i in range(0,p.shape[0]):
-            for j in range(0,p.shape[1]):
-                if p[i][j]==maxVal:
-                    listKeys.append((i,j))
-        if len(listKeys)==1:
-            secondMax = np.max(p[p!=maxVal])
-            listKeysSecond = []
-            for i in range(0,p.shape[0]):
-                for j in range(0,p.shape[1]):
-                    if p[i][j]==secondMax:
-                        listKeysSecond.append((i,j))
-            h = float("inf")
-            for i in range(0,len(listKeysSecond)):
-                h = min(h, max(listKeys[0][0],listKeysSecond[i][0])+max(listKeys[0][1],listKeysSecond[i][1]))        
-            return h
-        h = float("inf")
-        for i in range(0,len(listKeys)):
-            for j in range(0,len(listKeys)):
-                if i!=j:
-                    h = min(h, max(listKeys[i][0],listKeys[j][0])+max(listKeys[i][1],listKeys[j][1]))
-        return h
+
 
     pruned = 0
     while not fringe.empty():
         pr,curr = fringe.get()
         currArray = np.frombuffer(curr,dtype=beliefs.dtype).reshape(beliefs.shape)
-        printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [heuristic: %d] "%(fringe.qsize(), costs[endState],pruned,pr,getHeuristic(currArray)),end="\r")
+        printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [estimate: %d] "%(fringe.qsize(), costs[endState],pruned,costs[curr],pr),end="\r")
 
         # print("------- curr [%0.4f] --------------------"%pr)
         # print(currArray)
+        if costs[curr]>costs[endState]:
+            pruned+=1
+            continue
         if pr>costs[endState]:
             pruned+=1
             continue
+        
 
         if np.count_nonzero(currArray==0.0)==totalTile - 1:
             # print("Goal!")
@@ -247,12 +264,8 @@ def getDijkstraMovesSequence(schema : np.ndarray):
         for move in Move:
             tmpBeliefs[move] = beliefUpdateStep(schema,currArray,move)
             zeros[move] = np.count_nonzero(tmpBeliefs[move]==0.0)
-        
-        mx = max(zeros.values())
 
-        bestMoves = [move for move in zeros if zeros[move]==mx]
-                
-        for move in bestMoves:
+        for move in Move:
             probs = tmpBeliefs[move]
             probString = probs.tobytes()
             newCost = costs[curr] + 1
@@ -261,6 +274,7 @@ def getDijkstraMovesSequence(schema : np.ndarray):
                 # print("Added ",move.name,"====>",newCost)
                 costs[probString] = newCost
                 fringe.put((newCost+getHeuristic(probs),probs.tobytes()))
+
                 pathStore[probString] = (curr,move)
     print()
     print(np.frombuffer(endState,dtype=beliefs.dtype).reshape(beliefs.shape))
