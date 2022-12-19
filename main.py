@@ -286,9 +286,11 @@ def getDijkstraMovesSequence(schema : np.ndarray):
 def getSusMovesSequence(schema: np.ndarray):
     beliefs = schema / np.count_nonzero(schema==1)
 
-    def getNonZeroBounds(p):
+    def getNonZeroBounds(p,lC,rC):
         minY, maxY= p.shape[1],0
-        minX, maxX= p.shape[0],0
+        
+        minX = 0 if lC!=0 else p.shape[0]
+        maxX=  0 if rC!=0 else p.shape[0]
         for i in range(0,p.shape[0]):
             for j in range(0,p.shape[1]):
                 # print(p[i][j], " | ",(i,j))
@@ -298,9 +300,16 @@ def getSusMovesSequence(schema: np.ndarray):
         # print(minY,maxY)
         for i in range(0,p.shape[0]):
             if p[i][minY]!=0:
-                minX = min(minX,i)
+                if lC == 0:
+                    minX = min(minX,i)
+                else:
+                    minX = max(minX,i)
             if p[i][maxY]!=0:
-                maxX = max(maxX,i)
+                if rC == 0:
+                    maxX = min(maxX,i)
+                else:
+                    maxX = max(maxX,i)
+
         return (minX,minY) ,(maxX,maxY)
 
     def getBestMove(schema,a,b):
@@ -345,20 +354,26 @@ def getSusMovesSequence(schema: np.ndarray):
         # print(path)
         return path[0]
 
-    a,b = getNonZeroBounds(beliefs)
-    moves = []
-    while a!=b:
-        move = getBestMove(schema,a,b)
-        # print("====================")
-        # print(a,b)
-        # print(beliefs)
-        # print(move)
-        beliefs = beliefUpdateStep(schema, beliefs, move)
-        moves.append(move)
-        a,b = getNonZeroBounds(beliefs)
+    moves = {}
+    done = False
+    beliefStates = {}
+    for i in [0,1]:
+            for j in [0,1]:
+                moves[(i,j)] = []
+                beliefStates[(i,j)] = deepcopy(beliefs)
+    while not done:   
+        for i in [0,1]:
+            for j in [0,1]:
+                if i!=j:
+                    a,b = getNonZeroBounds(beliefStates[(i,j)],i,j)
+                    if a==b:
+                        return moves[(i,j)]
+                    move = getBestMove(schema,a,b)
+                    # print((i,j)," -> ",move)
+                    beliefStates[(i,j)] = beliefUpdateStep(schema, beliefStates[(i,j)], move)
+                    moves[(i,j)].append(move)
 
-    print(beliefs )
-    return moves       
+    return moves[(0,1)]
 
     
 if __name__ =="__main__":
