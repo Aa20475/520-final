@@ -241,8 +241,6 @@ def getDijkstraMovesSequence(schema : np.ndarray):
         currArray = np.frombuffer(curr,dtype=beliefs.dtype).reshape(beliefs.shape)
         printStuff("[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [estimate: %d] "%(fringe.qsize(), costs[endState],pruned,costs[curr],pr),end="\r")
 
-        # print("------- curr [%0.4f] --------------------"%pr)
-        # print(currArray)
         if costs[curr]>costs[endState]:
             pruned+=1
             continue
@@ -252,7 +250,6 @@ def getDijkstraMovesSequence(schema : np.ndarray):
         
 
         if np.count_nonzero(currArray==0.0)==totalTile - 1:
-            # print("Goal!")
             if endState is None:
                 endState = curr
             if costs[endState]>costs[curr]:
@@ -270,8 +267,6 @@ def getDijkstraMovesSequence(schema : np.ndarray):
             probString = probs.tobytes()
             newCost = costs[curr] + 1
             if probString not in costs or newCost < costs[probString]:
-                # print(probs)
-                # print("Added ",move.name,"====>",newCost)
                 costs[probString] = newCost
                 fringe.put((newCost+getHeuristic(probs),probs.tobytes()))
 
@@ -388,13 +383,13 @@ if __name__ =="__main__":
             schema = [strToSchema(x) for x in f.readlines()]
     
     schema = np.array(schema)
-    if args.algo==0:
+    if args.algo==3:
         bestMovesSequence = getDijkstraMovesSequence(schema)
     elif args.algo==1:
         bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo==2:
         bestMovesSequence = getBFSMovesSequence(schema)
-    elif args.algo==3:
+    elif args.algo==0:
         bestMovesSequence = getSusMovesSequence(schema)
 
     clear_output(wait=True)
