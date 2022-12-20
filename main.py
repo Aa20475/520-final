@@ -9,7 +9,13 @@ from collections import deque
 from queue import PriorityQueue
 from IPython.display import clear_output
 from tqdm import tqdm
+import os
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT']='1'
+
 import pygame
+
+
 import math
 from time import sleep, time
 
