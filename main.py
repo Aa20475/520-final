@@ -102,148 +102,6 @@ def buildArgs():
 
     return parser.parse_args()
 
-
-# Converts a single line of string into array of schema
-def strToSchema(s: str):
-    return [0 if c == "X" else 1 for c in s.split("\n")[0]]
-
-
-# checks if a position is valid
-def isValid(schema: np.ndarray, i, j):
-    return (
-        i >= 0
-        and i < schema.shape[0]
-        and j >= 0
-        and j < schema.shape[1]
-        and schema[i][j] != 0
-    )
-
-
-# Performs belief update based on a give move
-# Note that it creates a new copy of beliefs
-def beliefUpdateStep(schema: np.ndarray, beliefs: np.ndarray, move: Move):
-    newBeliefs = np.zeros(beliefs.shape)
-    for i in range(0, beliefs.shape[0]):
-        for j in range(0, beliefs.shape[1]):
-            if schema[i][j] != 0:
-                # update belief for unblocked cells
-                newI = i + move.value[0]
-                newJ = j + move.value[1]
-                if isValid(schema, newI, newJ):
-                    newBeliefs[newI][newJ] += beliefs[i][j]
-                else:
-                    newBeliefs[i][j] += beliefs[i][j]
-    return newBeliefs
-
-
-def getHeuristic(p: np.ndarray,dists):
-    maxLen = 0
-    nonZero = []
-    for i in range(0, p.shape[0]):
-        for j in range(0, p.shape[1]):
-            if p[i][j] != 0:
-                nonZero.append((i,j))
-    
-    for x in nonZero:
-        for y in nonZero:
-            maxLen = max(maxLen,dists[(x,y)])
-
-    return maxLen
-
-
-def getHeuristicOld(p: np.ndarray):
-    maxVal = np.max(p)
-    listKeys = []
-    for i in range(0, p.shape[0]):
-        for j in range(0, p.shape[1]):
-            if p[i][j] == maxVal:
-                listKeys.append((i, j))
-    if len(listKeys) == 1:
-        secondMax = np.max(p[p != maxVal])
-        listKeysSecond = []
-        for i in range(0, p.shape[0]):
-            for j in range(0, p.shape[1]):
-                if p[i][j] == secondMax:
-                    listKeysSecond.append((i, j))
-        h = 0
-        for i in range(0, len(listKeysSecond)):
-            h = max(
-                h,
-                max(listKeys[0][0], listKeysSecond[i][0])
-                + max(listKeys[0][1], listKeysSecond[i][1]),
-            )
-        return h
-    h = 0
-    for i in range(0, len(listKeys)):
-        for j in range(0, len(listKeys)):
-            if i != j:
-                h = max(
-                    h,
-                    max(listKeys[i][0], listKeys[j][0])
-                    + max(listKeys[i][1], listKeys[j][1]),
-                )
-    return h
-
-
-def simulateGame(schema, moves):
-    beliefs = np.array(schema != 0, dtype=int) / np.count_nonzero(schema != 0)
-    # print(beliefs)
-
-    for move in moves:
-        # print("Move :",move.name," ===========================")
-        beliefs = beliefUpdateStep(schema, beliefs, move)
-    #     print(beliefs)
-    return beliefs
-
-
-def getBestPath(schema, a, b):
-    # Performs search algorithm from top left non-zero to bottom-right non-zero
-    fringe = PriorityQueue()
-    fringe.put((0, a))
-
-    costs = {}
-    pred = {}
-
-    costs[a] = 0
-    pred[a] = None
-
-    while not fringe.empty():
-        prior, top = fringe.get()
-        # print("=== [%d]======="%prior)
-        # print(top)
-        if top == b:
-            break
-
-        for move in Move:
-            newCost = costs[top] + 1
-            newPoint = (top[0] + move.value[0], top[1] + move.value[1])
-            if isValid(schema, newPoint[0], newPoint[1]) and (
-                newPoint not in costs or costs[newPoint] > newCost
-            ):
-                # print("Added ",move.name," || ", newCost + abs(newPoint[0]-b[0]) + abs(newPoint[1]-b[1]))
-                costs[newPoint] = newCost
-                pred[newPoint] = (top, move)
-                priority = newCost + abs(newPoint[0] - b[0]) + abs(newPoint[1] - b[1])
-                fringe.put((priority, newPoint))
-
-    if b not in pred:
-        print("No path from ", a, " to ", b)
-        return []
-
-    curr = pred[b]
-    path = []
-    points = [b]
-    while not curr is None:
-        path.append(curr[1])
-        points.append(curr[0])
-        curr = pred[curr[0]]
-
-    path.reverse()
-    points.reverse()
-    # print(path)
-    return path, points
-
-
 def runUI(schema, moves):
     pygame.init()
     screen = pygame.display.set_mode([900, 900])
@@ -384,6 +242,137 @@ def runUI(schema, moves):
         pygame.display.flip()
     pygame.quit()
 
+# Converts a single line of string into array of schema
+def strToSchema(s: str):
+    return [0 if c == "X" else 1 for c in s.split("\n")[0]]
+
+
+# checks if a position is valid
+def isValid(schema: np.ndarray, i, j):
+    return (
+        i >= 0
+        and i < schema.shape[0]
+        and j >= 0
+        and j < schema.shape[1]
+        and schema[i][j] != 0
+    )
+
+
+# Performs belief update based on a give move
+# Note that it creates a new copy of beliefs
+def beliefUpdateStep(schema: np.ndarray, beliefs: np.ndarray, move: Move):
+    newBeliefs = np.zeros(beliefs.shape)
+    for i in range(0, beliefs.shape[0]):
+        for j in range(0, beliefs.shape[1]):
+            if schema[i][j] != 0:
+                # update belief for unblocked cells
+                newI = i + move.value[0]
+                newJ = j + move.value[1]
+                if isValid(schema, newI, newJ):
+                    newBeliefs[newI][newJ] += beliefs[i][j]
+                else:
+                    newBeliefs[i][j] += beliefs[i][j]
+    return newBeliefs
+
+
+def getHeuristic(p: np.ndarray,dists):
+    maxLen = 0
+    nonZero = []
+    for i in range(0, p.shape[0]):
+        for j in range(0, p.shape[1]):
+            if p[i][j] != 0:
+                nonZero.append((i,j))
+    
+    for x in nonZero:
+        for y in nonZero:
+            maxLen = max(maxLen,dists[(x,y)])
+
+    return maxLen
+
+
+def getHeuristicOld(p: np.ndarray):
+    maxVal = np.max(p)
+    listKeys = []
+    for i in range(0, p.shape[0]):
+        for j in range(0, p.shape[1]):
+            if p[i][j] == maxVal:
+                listKeys.append((i, j))
+    if len(listKeys) == 1:
+        secondMax = np.max(p[p != maxVal])
+        listKeysSecond = []
+        for i in range(0, p.shape[0]):
+            for j in range(0, p.shape[1]):
+                if p[i][j] == secondMax:
+                    listKeysSecond.append((i, j))
+        h = 0
+        for i in range(0, len(listKeysSecond)):
+            h = max(
+                h,
+                max(listKeys[0][0], listKeysSecond[i][0])
+                + max(listKeys[0][1], listKeysSecond[i][1]),
+            )
+        return h
+    h = 0
+    for i in range(0, len(listKeys)):
+        for j in range(0, len(listKeys)):
+            if i != j:
+                h = max(
+                    h,
+                    max(listKeys[i][0], listKeys[j][0])
+                    + max(listKeys[i][1], listKeys[j][1]),
+                )
+    return h
+
+
+def simulateGame(schema, moves):
+    beliefs = np.array(schema != 0, dtype=int) / np.count_nonzero(schema != 0)
+    # print(beliefs)
+
+    for move in moves:
+        # print("Move :",move.name," ===========================")
+        beliefs = beliefUpdateStep(schema, beliefs, move)
+    #     print(beliefs)
+    return beliefs
+
+
+def getBestPath(schema, a, b):
+    # Performs search algorithm from top left non-zero to bottom-right non-zero
+    fringe = PriorityQueue()
+    fringe.put((0, a))
+
+    costs = {}
+    pred = {}
+
+    costs[a] = 0
+    pred[a] = None
+
+    while not fringe.empty():
+        prior, top = fringe.get()
+        if top == b:
+            break
+
+        for move in Move:
+            newCost = costs[top] + 1
+            newPoint = (top[0] + move.value[0], top[1] + move.value[1])
+            if isValid(schema, newPoint[0], newPoint[1]) and (
+                newPoint not in costs or costs[newPoint] > newCost
+            ):
+                costs[newPoint] = newCost
+                pred[newPoint] = top
+                priority = newCost + abs(newPoint[0] - b[0]) + abs(newPoint[1] - b[1])
+                fringe.put((priority, newPoint))
+    
+    curr = pred[b]
+    length = 0
+    while not curr is None:
+        curr = pred[curr]
+        length +=1
+
+    return length
+
+
+
+
 def getPathCache(schema):
     dists = {}
     
@@ -392,17 +381,11 @@ def getPathCache(schema):
         for j in range(0, schema.shape[1]):
             if schema[i][j] != 0:
                 nonZero.append((i, j))
-    for i in range(0, len(nonZero)):
-        for j in range(len(nonZero) - 1, -1, -1):
-            if (nonZero[i],nonZero[j]) not in dists:
+    for i in nonZero:
+        for j in nonZero:
                 # print( nonZero[i], nonZero[j])
-                _, path = getBestPath(schema, nonZero[i], nonZero[j])
+                dists[(i, j)] = getBestPath(schema, i,j)
                 # print(path)
-                for x in range(0, len(path)):
-                    for y in range(x , len(path)):
-                        if (path[x],path[y]) not in dists:
-                            dists[(path[x], path[y])] = y - x
-                            dists[(path[y], path[x])] = y - x 
     return dists
 
 def getRating(beliefs,dists):
@@ -596,13 +579,10 @@ def getAStarMovesSequence(schema: np.ndarray):
             tmpBeliefs[move] = beliefUpdateStep(schema, currArray, move)
             zeros[move] = np.count_nonzero(tmpBeliefs[move] == 0.0)
         mx = max(zeros.values())
-
         bestMoves = [move for move in zeros if zeros[move] == mx]
-        
         ratings = {i: getRating(tmpBeliefs[i],dists) for i in bestMoves}
         mxRatings = min(ratings.values())
         bestMoves = [i for i in ratings.keys() if ratings[i] == mxRatings]
-
         for move in bestMoves:
             probs = tmpBeliefs[move]
             probString = probs.tobytes()
