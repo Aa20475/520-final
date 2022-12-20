@@ -392,7 +392,7 @@ def getPathCache(schema):
         for j in range(0, schema.shape[1]):
             if schema[i][j] != 0:
                 nonZero.append((i, j))
-    for i in tqdm(range(0, len(nonZero))):
+    for i in range(0, len(nonZero)):
         for j in range(len(nonZero) - 1, -1, -1):
             if (nonZero[i],nonZero[j]) not in dists:
                 # print( nonZero[i], nonZero[j])
@@ -570,11 +570,11 @@ def getAStarMovesSequence(schema: np.ndarray):
     while not fringe.empty():
         pr, curr = fringe.get()
         currArray = np.frombuffer(curr, dtype=beliefs.dtype).reshape(beliefs.shape)
-        printStuff(
-            "[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [estimate: %d] "
-            % (fringe.qsize(), costs[endState], pruned, costs[curr], pr),
-            end="\r",
-        )
+        # printStuff(
+        #     "[Fringe size : %d] [bestPath len : %d] [pruned: %d] [currLen: %d] [estimate: %d] "
+        #     % (fringe.qsize(), costs[endState], pruned, costs[curr], pr),
+        #     end="\r",
+        # )
 
         if costs[curr] > costs[endState]:
             pruned += 1
@@ -612,10 +612,10 @@ def getAStarMovesSequence(schema: np.ndarray):
                 fringe.put((newCost + getHeuristic(probs,dists), probs.tobytes()))
 
                 pathStore[probString] = (curr, move)
-    print()
+    # print()
     # print(np.frombuffer(endState, dtype=beliefs.dtype).reshape(beliefs.shape))
     if endState not in pathStore:
-        print("Greedy")
+        # print("Greedy")
         return greedyPath
     return [] if endState is None else getPath(endState)
 

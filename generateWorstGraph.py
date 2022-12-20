@@ -1,4 +1,4 @@
-from main import getSusMovesSequence, buildArgs, isValid, Move
+from main import getSusMovesSequence, getAStarMovesSequence, buildArgs, isValid, Move
 from queue import PriorityQueue
 import numpy as np
 from tqdm import tqdm
@@ -47,7 +47,7 @@ def getSimilarSchemas(schema):
     
     return rotStrings
 
-def getBFSWorstSchema(size):
+def getWorstSchema(size):
     # BFS with aggressive pruning
     fringe = PriorityQueue()
     start =  np.ones(size)
@@ -69,6 +69,9 @@ def getBFSWorstSchema(size):
             % (fringe.qsize(), mxSteps, 1/priority, pruned, flagPrune),
             end="\r",
         )
+        # print()
+
+        # print(curr)
 
         visited.add(currBytes)
 
@@ -91,6 +94,7 @@ def getBFSWorstSchema(size):
         
         unique = [True]*len(validNextSchemas)
         for i in range(0,len(unique)):
+            # print(validNextSchemas)
             if unique[i]:
                 rotStrings = getSimilarSchemas(validNextSchemas[i])
                 for j in range(i+1,len(unique)):
@@ -98,33 +102,43 @@ def getBFSWorstSchema(size):
                         flagPrune+=1
                         unique[j] = False
         
-        for schema in validNextSchemas:
-            if unique:
-                fringe.put((1/len(getSusMovesSequence(schema)),schema.tobytes()))
+        validNextSchemas = [validNextSchemas[i] for i in range(0,len(validNextSchemas)) if unique[i]]
+        # print("Calculating paths ...")
+        ratings = [len(getSusMovesSequence(validNextSchemas[i])) for i in range(0,len(validNextSchemas))]
+        validNextSchemas = [validNextSchemas[i] for i in range(0,len(validNextSchemas)) if ratings[i]>1/priority]
+        
+        ratings = [r for r in ratings if r > 1/priority]
+        # print("Adding %d schemas to fringe"%(len(validNextSchemas)))
+        for i in range(0,len(validNextSchemas)):
+            schema = validNextSchemas[i]
+            try:
+                fringe.put((1/ratings[i],schema.tobytes()))
+            except ZeroDivisionError:
+                print(schema)
+                raise ZeroDivisionError()
                 
 
     
     return mxSchema
 
 
-def getWorstSchema(size):
+def getWorstSchemaX(size):
     schema = np.ones(size)
     
-    while True:
-        actionToSequence = {}
-        print(len(getSusMovesSequence(schema)))
-        for i in tqdm(range(0,size[0]),leave=False):
-            log = ""
-            for j in tqdm(range(0,size[1]),leave=False):
-                if isValid(schema,i,j):
-                    tmpSchema = np.array(schema)
-                    tmpSchema[i,j] = 0
-                    actionToSequence[(i,j)] = len(getSusMovesSequence(tmpSchema))
-                    log += str(actionToSequence[(i,j)]) + " "
-            # print(log)
+    actionToSequence = {}
+    print(len(getAStarMovesSequence(schema)))
+    for i in range(0,size[0]):
+        log = ""
+        for j in range(0,size[1]):
+            if isValid(schema,i,j):
+                tmpSchema = np.array(schema)
+                tmpSchema[i,j] = 0
+                actionToSequence[(i,j)] = len(getAStarMovesSequence(tmpSchema))
+                log += str(actionToSequence[(i,j)]) + " "
+        print(log)
 
-        
-        print(max(actionToSequence.values()))
+    
+    print(max(actionToSequence.values()))
 
 
     return "Brrr"
