@@ -1,7 +1,7 @@
 from main import getSusMovesSequence, buildArgs, isValid, Move
 from queue import PriorityQueue
 import numpy as np
-
+from tqdm import tqdm
 
 def isValidSchema(schema):
     start = (0,0)
@@ -47,16 +47,8 @@ def getSimilarSchemas(schema):
     
     return rotStrings
 
-
-    
-
-
-
-def getWorstSchema(size):
+def getBFSWorstSchema(size):
     # BFS with aggressive pruning
-
-    print("Exploring %d X %d graph space!"%(size[0],size[1]))
-
     fringe = PriorityQueue()
     start =  np.ones(size)
     startSteps = len(getSusMovesSequence(start))
@@ -115,10 +107,35 @@ def getWorstSchema(size):
     return mxSchema
 
 
+def getWorstSchema(size):
+    schema = np.ones(size)
+    
+    while True:
+        actionToSequence = {}
+        print(len(getSusMovesSequence(schema)))
+        for i in tqdm(range(0,size[0]),leave=False):
+            log = ""
+            for j in tqdm(range(0,size[1]),leave=False):
+                if isValid(schema,i,j):
+                    tmpSchema = np.array(schema)
+                    tmpSchema[i,j] = 0
+                    actionToSequence[(i,j)] = len(getSusMovesSequence(tmpSchema))
+                    log += str(actionToSequence[(i,j)]) + " "
+            # print(log)
+
+        
+        print(max(actionToSequence.values()))
+
+
+    return "Brrr"
+
+
 if __name__ == "__main__":
 
     args = buildArgs()
 
-    schemaSize = (args.rows,args.columns)
+    size = (args.rows,args.columns)
+    print("Exploring %d X %d graph space!"%(size[0],size[1]))
 
-    print(getWorstSchema(schemaSize))
+
+    print(getWorstSchema(size))

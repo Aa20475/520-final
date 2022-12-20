@@ -381,21 +381,12 @@ def runUI(schema, moves):
         pygame.display.flip()
     pygame.quit()
 
-
-# Performs greedy search with random tie-breaking
-def getGreedyMoveSequence(schema, ui=False):
-    beliefs = np.array(schema != 0, dtype=int) / np.count_nonzero(schema == 1)
-
-    totalTiles = beliefs.shape[0] * beliefs.shape[1]
-
-    # printStuff("Total tiles: ",totalTiles.)
-    bestMovesSequence = []
-
+def getPathCache(schema):
     dists = {}
     
     nonZero = []
-    for i in range(0, beliefs.shape[0]):
-        for j in range(0, beliefs.shape[1]):
+    for i in range(0, schema.shape[0]):
+        for j in range(0, schema.shape[1]):
             if schema[i][j] != 0:
                 nonZero.append((i, j))
     for i in tqdm(range(0, len(nonZero))):
@@ -409,12 +400,38 @@ def getGreedyMoveSequence(schema, ui=False):
                         if (path[x],path[y]) not in dists:
                             dists[(path[x], path[y])] = y - x
                             dists[(path[y], path[x])] = y - x 
-                            # print((path[x], path[y]), " :", dists[(path[x], path[y])])
+    return dists
 
+def getRating(beliefs,dists):
+    rating = 0.0
+    nonZero = []
+    for i in range(0, beliefs.shape[0]):
+        for j in range(0, beliefs.shape[1]):
+            if beliefs[i][j] != 0:
+                nonZero.append((i, j))
+
+    for i in range(0, len(nonZero)):
+        for j in range(len(nonZero) - 1, -1, -1):
+            rating += dists[(nonZero[i], nonZero[j])]
+
+    return rating
+
+# Performs greedy search with random tie-breaking
+def getGreedyMoveSequence(schema, ui=False,pathCache = None):
+    beliefs = np.array(schema != 0, dtype=int) / np.count_nonzero(schema == 1)
+
+    totalTiles = beliefs.shape[0] * beliefs.shape[1]
+
+    # printStuff("Total tiles: ",totalTiles.)
+    bestMovesSequence = []
+    if pathCache is None:
+        dists = getPathCache(schema)
+    else:
+        dists=pathCache
+    
     moveCounter = {
         move:0 for move in Move
     }
-
 
     while np.count_nonzero(beliefs == 0.0) != totalTiles - 1:
 
@@ -428,24 +445,8 @@ def getGreedyMoveSequence(schema, ui=False):
         keyList = list(tmpBeliefs.keys())
         bestMoves = [keyList[i] for i in range(0, len(zeros)) if zeros[i] == mx]
 
-
-        def getRating(beliefs):
-            rating = 0.0
-            nonZero = []
-            for i in range(0, beliefs.shape[0]):
-                for j in range(0, beliefs.shape[1]):
-                    if beliefs[i][j] != 0:
-                        nonZero.append((i, j))
-
-            for i in range(0, len(nonZero)):
-                for j in range(len(nonZero) - 1, -1, -1):
-                    rating += dists[(nonZero[i], nonZero[j])]
-
-            return rating
-        # print(bestMoves)
-        # print(beliefs+schema)
         if len(bestMoves) > 1:
-            contours = {i: getRating(tmpBeliefs[i]) for i in bestMoves}
+            contours = {i: getRating(tmpBeliefs[i],dists) for i in bestMoves}
             mxContours = min(contours.values())
             bestMoves = [i for i in contours.keys() if contours[i] == mxContours]
             if len(bestMoves)!=1:
@@ -481,14 +482,16 @@ def getBFSMovesSequence(schema):
 
     bestPath = None
 
+    dists = getPathCache(schema)
+
     while len(fringe) != 0:
-        printStuff(
-            "[Fringe size : %d] [bestPath len : %d]"
-            % (len(fringe), 0 if bestPath is None else len(bestPath)),
-            end="\r",
-        )
         seq, beliefs = fringe.popleft()
 
+        printStuff(
+            "[Fringe size : %d] [curr len : %d]"
+            % (len(fringe), len(seq)),
+            end="\r",
+        )
         # goal state
         if np.count_nonzero(beliefs == 0.0) == totalTiles - 1:
             # goal state
@@ -508,17 +511,18 @@ def getBFSMovesSequence(schema):
         mx = max(zeros.values())
 
         bestMoves = [move for move in zeros if zeros[move] == mx]
+        
+        ratings = {i: getRating(tmpBeliefs[i],dists) for i in bestMoves}
+        mxRatings = min(ratings.values())
+        bestMoves = [i for i in ratings.keys() if ratings[i] == mxRatings]
 
+        
+        for move in bestMoves:
+            fringe.append((seq + [move], tmpBeliefs[move]))
+        
         if debug:
             printStuff("BestMove: ", bestMoves, log=True)
             printStuff("====", log=True)
-        if len(bestMoves) == 1:
-            fringe.append((seq + [bestMoves[0]], tmpBeliefs[bestMoves[0]]))
-        else:
-            for move in bestMoves:
-                if len(seq) == 0 or (len(seq) != 0 and move != seq[-1]):
-                    fringe.append((seq + [move], tmpBeliefs[move]))
-        if debug:
             printStuff("Fringe", log=True)
             for f in fringe:
                 printStuff(f[0], log=True)
@@ -527,7 +531,7 @@ def getBFSMovesSequence(schema):
     return bestPath if not bestPath is None else []
 
 
-def getDijkstraMovesSequence(schema: np.ndarray):
+def getAStarMovesSequence(schema: np.ndarray):
     global debug
 
     totalTile = schema.shape[0] * schema.shape[1]
@@ -542,11 +546,6 @@ def getDijkstraMovesSequence(schema: np.ndarray):
 
     pathStore = {}
     pathStore[beliefs.tobytes()] = None
-
-    greedyPath = getGreedyMoveSequence(schema)
-    endState = simulateGame(schema, greedyPath).tobytes()
-    costs[endState] = len(greedyPath)
-
     def getPath(stat):
         path = []
         current = pathStore[stat]
@@ -555,6 +554,14 @@ def getDijkstraMovesSequence(schema: np.ndarray):
             current = pathStore[current[0]]
         path.reverse()  # optional
         return path
+
+    dists = getPathCache(schema)
+    greedyPath = getGreedyMoveSequence(schema,pathCache= dists)
+    
+
+    endState = simulateGame(schema, greedyPath).tobytes()
+    costs[endState] = len(greedyPath)
+
 
     pruned = 0
     while not fringe.empty():
@@ -585,8 +592,15 @@ def getDijkstraMovesSequence(schema: np.ndarray):
         for move in Move:
             tmpBeliefs[move] = beliefUpdateStep(schema, currArray, move)
             zeros[move] = np.count_nonzero(tmpBeliefs[move] == 0.0)
+        mx = max(zeros.values())
 
-        for move in Move:
+        bestMoves = [move for move in zeros if zeros[move] == mx]
+        
+        ratings = {i: getRating(tmpBeliefs[i],dists) for i in bestMoves}
+        mxRatings = min(ratings.values())
+        bestMoves = [i for i in ratings.keys() if ratings[i] == mxRatings]
+
+        for move in bestMoves:
             probs = tmpBeliefs[move]
             probString = probs.tobytes()
             newCost = costs[curr] + 1
@@ -596,7 +610,7 @@ def getDijkstraMovesSequence(schema: np.ndarray):
 
                 pathStore[probString] = (curr, move)
     print()
-    print(np.frombuffer(endState, dtype=beliefs.dtype).reshape(beliefs.shape))
+    # print(np.frombuffer(endState, dtype=beliefs.dtype).reshape(beliefs.shape))
     if endState not in pathStore:
         print("Greedy")
         return greedyPath
@@ -746,15 +760,15 @@ if __name__ == "__main__":
                 nonZero.append((i, j))
 
     schema[random.choice(nonZero)] = 2
-
-    if args.algo == 1:
+    
+    if args.algo == 0:
+        bestMovesSequence = getAStarMovesSequence(schema)
+    elif args.algo == 1:
         bestMovesSequence = getSusMovesSequence(schema)
-    elif args.algo == 0:
-        bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo == 2:
-        bestMovesSequence = getBFSMovesSequence(schema)
+        bestMovesSequence = getGreedyMoveSequence(schema)
     elif args.algo == 3:
-        bestMovesSequence = getDijkstraMovesSequence(schema)
+        bestMovesSequence = getBFSMovesSequence(schema)
 
     clear_output(wait=True)
     if args.ui:
