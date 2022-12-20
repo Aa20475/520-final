@@ -136,16 +136,19 @@ def beliefUpdateStep(schema: np.ndarray, beliefs: np.ndarray, move: Move):
     return newBeliefs
 
 
-def getHeuristic(p: np.ndarray):
-    minY, maxY = p.shape[1], 0
-    minX, maxX = p.shape[0], 0
+def getHeuristic(p: np.ndarray,dists):
+    maxLen = 0
+    nonZero = []
     for i in range(0, p.shape[0]):
         for j in range(0, p.shape[1]):
             if p[i][j] != 0:
-                minX, maxX = min(minX, i), max(maxX, i)
-                minY, maxY = min(minY, j), max(maxY, j)
+                nonZero.append((i,j))
+    
+    for x in nonZero:
+        for y in nonZero:
+            maxLen = max(maxLen,dists[(x,y)])
 
-    return abs(minX - maxX) + abs(minY - maxY)
+    return maxLen
 
 
 def getHeuristicOld(p: np.ndarray):
@@ -606,7 +609,7 @@ def getAStarMovesSequence(schema: np.ndarray):
             newCost = costs[curr] + 1
             if probString not in costs or newCost < costs[probString]:
                 costs[probString] = newCost
-                fringe.put((newCost + getHeuristic(probs), probs.tobytes()))
+                fringe.put((newCost + getHeuristic(probs,dists), probs.tobytes()))
 
                 pathStore[probString] = (curr, move)
     print()
