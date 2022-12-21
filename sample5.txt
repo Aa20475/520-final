@@ -1,7 +1,5 @@
-XXXXXXXXX
-XXX___XXX
-XX_____XX
-X_______X
-XX_____XX
-XXX___XXX
-XXXXXXXXX
+_____
+_X__X
+__X__
+_X_X_
+___X_

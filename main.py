@@ -722,6 +722,32 @@ def getSusMovesSequence(schema: np.ndarray):
 
     return moves[(0, 1)]
 
+def isValidSchema(schema):
+    start = (0,0)
+    for i in range(0,schema.shape[0]):
+        for j in range(0,schema.shape[1]):
+            if isValid(schema,i,j):
+                start = (i,j)
+                break
+    
+    fringe = [start]
+    visited = np.zeros_like(schema)
+
+    while len(fringe)!=0:
+        top = fringe.pop()
+
+        visited[top[0],top[1]] = 1
+
+        for move in Move:
+            i,j = top[0]+move.value[0], top[1]+move.value[1]
+            if isValid(schema,i,j) and visited[i,j]==0:
+                fringe.append((i,j))
+    
+    for i in range(0,schema.shape[0]):
+        for j in range(0,schema.shape[1]):
+            if isValid(schema,i,j) and visited[i,j]==0:
+                return False
+    return True
 
 if __name__ == "__main__":
     start = time()
@@ -733,6 +759,23 @@ if __name__ == "__main__":
     if not args.generate:
         with open(args.schema, "r") as f:
             schema = [strToSchema(x) for x in f.readlines()]
+    else:
+        schema = []
+        for i in range(args.rows):
+            row = []
+            for j in range(args.columns):
+                row.append(1 if random.random()>0.6 else 0)
+        
+        schema = np.array(schema)
+        while not isValid(schema):
+            schema = []
+            for i in range(args.rows):
+                row = []
+                for j in range(args.columns):
+                    row.append(1 if random.random()>0.6 else 0)
+            
+            schema = np.array(schema)
+
 
     schema = np.array(schema)
 
