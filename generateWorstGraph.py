@@ -69,9 +69,6 @@ def getWorstSchema(size):
             % (fringe.qsize(), mxSteps, 1/priority, pruned, flagPrune),
             end="\r",
         )
-        # print()
-
-        # print(curr)
 
         visited.add(currBytes)
 
@@ -106,8 +103,15 @@ def getWorstSchema(size):
         # print("Calculating paths ...")
         ratings = [len(getSusMovesSequence(validNextSchemas[i])) for i in range(0,len(validNextSchemas))]
         validNextSchemas = [validNextSchemas[i] for i in range(0,len(validNextSchemas)) if ratings[i]>1/priority]
-        
         ratings = [r for r in ratings if r > 1/priority]
+
+        if len(ratings)!=0:
+            mxRating = max(ratings)
+            validNextSchemas = [validNextSchemas[i] for i in range(0,len(validNextSchemas)) if ratings[i]==mxRating]
+            ratings = [r for r in ratings if r ==mxRating]
+
+        
+
         # print("Adding %d schemas to fringe"%(len(validNextSchemas)))
         for i in range(0,len(validNextSchemas)):
             schema = validNextSchemas[i]
@@ -116,32 +120,8 @@ def getWorstSchema(size):
             except ZeroDivisionError:
                 print(schema)
                 raise ZeroDivisionError()
-                
-
-    
+                    
     return mxSchema
-
-
-def getWorstSchemaX(size):
-    schema = np.ones(size)
-    
-    actionToSequence = {}
-    print(len(getAStarMovesSequence(schema)))
-    for i in range(0,size[0]):
-        log = ""
-        for j in range(0,size[1]):
-            if isValid(schema,i,j):
-                tmpSchema = np.array(schema)
-                tmpSchema[i,j] = 0
-                actionToSequence[(i,j)] = len(getAStarMovesSequence(tmpSchema))
-                log += str(actionToSequence[(i,j)]) + " "
-        print(log)
-
-    
-    print(max(actionToSequence.values()))
-
-
-    return "Brrr"
 
 
 if __name__ == "__main__":
