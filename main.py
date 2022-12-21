@@ -764,7 +764,7 @@ if __name__ == "__main__":
         for i in range(args.rows):
             row = []
             for j in range(args.columns):
-                row.append(1 if random.random()>0.6 else 0)
+                row.append(1 if random.random()>0.72 else 0)
         
         schema = np.array(schema)
         while not isValid(schema):
@@ -772,7 +772,7 @@ if __name__ == "__main__":
             for i in range(args.rows):
                 row = []
                 for j in range(args.columns):
-                    row.append(1 if random.random()>0.6 else 0)
+                    row.append(1 if random.random()>0.72 else 0)
             
             schema = np.array(schema)
 

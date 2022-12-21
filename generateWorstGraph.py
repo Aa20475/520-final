@@ -132,4 +132,8 @@ if __name__ == "__main__":
     print("Exploring %d X %d graph space!"%(size[0],size[1]))
 
 
-    print(getWorstSchema(size))
+    schema  = getWorstSchema(size)
+    print()
+    
+    print(schema)
+    print("Worst Move: ", len(getSusMovesSequence(schema)))
